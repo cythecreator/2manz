@@ -87,7 +87,7 @@ export default function OnboardingPage() {
       .from('users')
       .select('id, name, email, photos')
       .or(`name.ilike.%${twoManSearch}%,email.ilike.%${twoManSearch}%`)
-      .neq('id', (await supabase.auth.getUser()).data.user?.id)
+      .neq('id', (await supabase.auth.getUser()).data.user?.id ?? '')
       .limit(5)
     setSearchResults(data || [])
   }
@@ -95,9 +95,11 @@ export default function OnboardingPage() {
   async function sendTwoManRequest(receiverId: string) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-    const { error } = await supabase.from('two_man_requests').insert({
-      sender_id: user.id,
-      receiver_id: receiverId,
+    const { error } = await supabase.from('two_man_links').insert({
+      user1_id: user.id,
+      user2_id: receiverId,
+      requester_id: user.id,
+      status: 'pending',
     })
     if (error) toast.error('Request failed')
     else { toast.success('2man request sent!'); setRequestSent(true) }

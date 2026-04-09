@@ -12,8 +12,6 @@ export interface User {
   forty_yard_dash: string | null
   bio: string | null
   photos: string[]
-  two_man_id: string | null
-  two_man_status: 'pending' | 'accepted' | 'none'
   onboarding_complete: boolean
   created_at: string
 }
@@ -28,7 +26,20 @@ export interface Prompt {
 
 export interface UserWithPrompts extends User {
   prompts: Prompt[]
-  two_man?: User | null
+  two_mans?: User[]
+}
+
+export interface TwoManLink {
+  id: string
+  user1_id: string
+  user2_id: string
+  requester_id: string
+  status: 'pending' | 'accepted'
+  created_at: string
+  // Joined fields
+  user1?: User
+  user2?: User
+  partner?: User // resolved: whichever side isn't the current user
 }
 
 export interface Match {
@@ -67,16 +78,6 @@ export interface DuoNotification {
   created_at: string
   triggered_by?: User
   target?: User
-}
-
-export interface TwoManRequest {
-  id: string
-  sender_id: string
-  receiver_id: string
-  status: 'pending' | 'accepted' | 'declined'
-  created_at: string
-  sender?: User
-  receiver?: User
 }
 
 export const PROMPT_QUESTIONS = [

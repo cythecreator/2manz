@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
-import { PROMPT_QUESTIONS } from '@/lib/types'
+import { PROMPT_QUESTIONS, TwoManLink, User } from '@/lib/types'
 import toast from 'react-hot-toast'
 import Link from 'next/link'
 
@@ -12,16 +12,27 @@ export default function ProfilePage() {
   const supabase = createClient()
   const router = useRouter()
   const [user, setUser] = useState<any>(null)
-  const [twoMan, setTwoMan] = useState<any>(null)
+  const [linkedMans, setLinkedMans] = useState<(TwoManLink & { partner: User })[]>([])
   const [prompts, setPrompts] = useState<any[]>([])
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
-
-  // Editable fields
   const [form, setForm] = useState<any>({})
   const [editPrompts, setEditPrompts] = useState<any[]>([])
+
+  const loadTwoMans = useCallback(async (userId: string) => {
+    const { data: links } = await supabase
+      .from('two_man_links')
+      .select('*, user1:user1_id(id,name,photos,age,location), user2:user2_id(id,name,photos,age,location)')
+      .or(`user1_id.eq.${userId},user2_id.eq.${userId}`)
+      .eq('status', 'accepted')
+    const resolved = (links || []).map((l: any) => ({
+      ...l,
+      partner: l.user1_id === userId ? l.user2 : l.user1,
+    }))
+    setLinkedMans(resolved)
+  }, [supabase])
 
   useEffect(() => {
     async function load() {
@@ -29,15 +40,10 @@ export default function ProfilePage() {
       if (!authUser) { router.push('/login'); return }
 
       const { data: profile } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', authUser.id)
-        .single()
+        .from('users').select('*').eq('id', authUser.id).single()
 
       const { data: promptData } = await supabase
-        .from('prompts')
-        .select('*')
-        .eq('user_id', authUser.id)
+        .from('prompts').select('*').eq('user_id', authUser.id)
 
       setUser(profile)
       setPrompts(promptData || [])
@@ -47,29 +53,18 @@ export default function ProfilePage() {
         { question: PROMPT_QUESTIONS[1], answer: '' },
         { question: PROMPT_QUESTIONS[2], answer: '' },
       ])
-
-      if (profile?.two_man_id) {
-        const { data: tm } = await supabase.from('users').select('*').eq('id', profile.two_man_id).single()
-        setTwoMan(tm)
-      }
+      await loadTwoMans(authUser.id)
     }
     load()
-  }, [supabase, router])
+  }, [supabase, router, loadTwoMans])
 
   async function save() {
     setSaving(true)
     const { error } = await supabase.from('users').update({
-      name: form.name,
-      age: form.age,
-      gender: form.gender,
-      location: form.location,
-      height: form.height,
-      salary: form.salary,
-      forty_yard_dash: form.forty_yard_dash,
-      fav_quote: form.fav_quote,
-      fav_date_place: form.fav_date_place,
-      bio: form.bio,
-      photos: form.photos,
+      name: form.name, age: form.age, gender: form.gender, location: form.location,
+      height: form.height, salary: form.salary, forty_yard_dash: form.forty_yard_dash,
+      fav_quote: form.fav_quote, fav_date_place: form.fav_date_place,
+      bio: form.bio, photos: form.photos,
     }).eq('id', user.id)
 
     if (!error) {
@@ -92,7 +87,7 @@ export default function ProfilePage() {
     const files = e.target.files
     if (!files || !user) return
     setUploadingPhoto(true)
-    const photos = form.photos || []
+    const photos = [...(form.photos || [])]
     for (const file of Array.from(files)) {
       if (photos.length >= 6) break
       const ext = file.name.split('.').pop()
@@ -106,14 +101,10 @@ export default function ProfilePage() {
     setUploadingPhoto(false)
   }
 
-  async function unlinkTwoMan() {
-    if (!confirm('Unlink your 2man?')) return
-    await supabase.from('users').update({ two_man_id: null, two_man_status: 'none' }).eq('id', user.id)
-    if (twoMan) {
-      await supabase.from('users').update({ two_man_id: null, two_man_status: 'none' }).eq('id', twoMan.id)
-    }
-    setTwoMan(null)
-    setUser((u: any) => ({ ...u, two_man_id: null }))
+  async function unlinkTwoMan(linkId: string, partnerName: string) {
+    if (!confirm(`Unlink ${partnerName}?`)) return
+    await supabase.from('two_man_links').delete().eq('id', linkId)
+    await loadTwoMans(user.id)
     toast.success('Unlinked')
   }
 
@@ -130,7 +121,6 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen pb-8">
-      {/* Header */}
       <div className="flex items-center justify-between px-4 py-4 border-b border-[#1E90FF10]">
         <h1 className="text-xl font-black">Profile</h1>
         <div className="flex gap-2">
@@ -216,14 +206,12 @@ export default function ProfilePage() {
             <input value={form.fav_date_place || ''} onChange={e => setForm((f: any) => ({...f, fav_date_place: e.target.value}))} placeholder="Favorite date place" className="input-field" />
           </div>
         ) : (
-          <>
-            {user.fav_quote && (
-              <div className="bg-[#0F2040] rounded-2xl p-4 border border-[#1E90FF15]">
-                <p className="text-white/50 text-xs mb-1">Favorite quote</p>
-                <p className="text-white/80 text-sm italic">&quot;{user.fav_quote}&quot;</p>
-              </div>
-            )}
-          </>
+          user.fav_quote && (
+            <div className="bg-[#0F2040] rounded-2xl p-4 border border-[#1E90FF15]">
+              <p className="text-white/50 text-xs mb-1">Favorite quote</p>
+              <p className="text-white/80 text-sm italic">&quot;{user.fav_quote}&quot;</p>
+            </div>
+          )
         )}
 
         {/* Prompts */}
@@ -248,36 +236,46 @@ export default function ProfilePage() {
           )}
         </div>
 
-        {/* 2Man section */}
+        {/* 2Man Crew section */}
         <div className="bg-[#0F2040] rounded-2xl p-4 border border-[#1E90FF15]">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-white font-bold">Your 2Man</h3>
-            {twoMan ? (
-              <button onClick={unlinkTwoMan} className="text-red-400/70 text-xs">Unlink</button>
-            ) : (
-              <Link href="/twoman" className="text-[#1E90FF] text-xs font-bold">Find one →</Link>
-            )}
+            <div>
+              <h3 className="text-white font-bold">2Man Crew</h3>
+              <p className="text-white/30 text-xs mt-0.5">{linkedMans.length} linked</p>
+            </div>
+            <Link href="/twoman" className="text-[#1E90FF] text-xs font-bold">
+              Manage →
+            </Link>
           </div>
-          {twoMan ? (
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-[#0A1628] overflow-hidden">
-                {twoMan.photos?.[0] ? (
-                  <Image src={twoMan.photos[0]} alt="" width={48} height={48} className="object-cover w-full h-full" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-xl">👤</div>
-                )}
-              </div>
-              <div>
-                <p className="font-bold">{twoMan.name}</p>
-                <p className="text-white/40 text-sm">{twoMan.location}</p>
-              </div>
+          {linkedMans.length > 0 ? (
+            <div className="space-y-2">
+              {linkedMans.map(link => (
+                <div key={link.id} className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-[#0A1628] overflow-hidden flex-shrink-0">
+                    {link.partner?.photos?.[0] ? (
+                      <Image src={link.partner.photos[0]} alt="" width={40} height={40} className="object-cover w-full h-full" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-lg">👤</div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm">{link.partner?.name}</p>
+                    <p className="text-white/30 text-xs">{link.partner?.location}</p>
+                  </div>
+                  <button
+                    onClick={() => unlinkTwoMan(link.id, link.partner?.name || 'them')}
+                    className="text-red-400/50 text-xs hover:text-red-400 transition-colors"
+                  >
+                    Unlink
+                  </button>
+                </div>
+              ))}
             </div>
           ) : (
-            <p className="text-white/30 text-sm">No 2man linked yet</p>
+            <p className="text-white/30 text-sm">No 2mans linked yet</p>
           )}
         </div>
 
-        {/* Sign out */}
         <button onClick={signOut} className="w-full text-white/30 text-sm py-3 border border-[#ffffff10] rounded-2xl hover:text-white/50 transition-colors">
           Sign Out
         </button>

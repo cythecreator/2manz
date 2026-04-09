@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Image from 'next/image'
-import { UserWithPrompts } from '@/lib/types'
+import { UserWithPrompts, User } from '@/lib/types'
 
 interface Props {
   user: UserWithPrompts
@@ -13,6 +13,7 @@ interface Props {
 export default function ProfileCard({ user, onLike, onPass }: Props) {
   const [photoIndex, setPhotoIndex] = useState(0)
   const photos = user.photos?.length > 0 ? user.photos : []
+  const twoMans = user.two_mans || []
 
   function prevPhoto(e: React.MouseEvent) {
     e.stopPropagation()
@@ -41,7 +42,7 @@ export default function ProfileCard({ user, onLike, onPass }: Props) {
           </div>
         )}
 
-        {/* Photo nav overlay */}
+        {/* Photo nav overlays */}
         {photos.length > 1 && (
           <>
             <button onClick={prevPhoto} className="absolute left-0 top-0 bottom-0 w-1/3 z-10" />
@@ -63,49 +64,41 @@ export default function ProfileCard({ user, onLike, onPass }: Props) {
 
         {/* Name + basics */}
         <div className="absolute bottom-4 left-4 right-4 z-20">
-          <div className="flex items-end justify-between">
-            <div>
-              <h2 className="text-2xl font-black text-white leading-tight">
-                {user.name}, {user.age}
-              </h2>
-              <p className="text-white/60 text-sm">{user.location}</p>
-            </div>
-            {/* 2Man preview */}
-            {user.two_man && (
-              <div className="text-right">
-                <p className="text-[#1E90FF] text-xs font-bold mb-1">2MAN</p>
-                <div className="flex items-center gap-2 bg-[#0A1628]/80 rounded-2xl px-3 py-2">
-                  {user.two_man.photos?.[0] ? (
-                    <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0">
-                      <Image src={user.two_man.photos[0]} alt="" width={32} height={32} className="object-cover w-full h-full" />
-                    </div>
-                  ) : (
-                    <div className="w-8 h-8 rounded-full bg-[#1E90FF22] flex items-center justify-center text-sm">👤</div>
-                  )}
-                  <div>
-                    <p className="text-white text-xs font-bold">{user.two_man.name}</p>
-                    {user.two_man.age && <p className="text-white/40 text-[10px]">{user.two_man.age}</p>}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
+          <h2 className="text-2xl font-black text-white leading-tight">
+            {user.name}, {user.age}
+          </h2>
+          <p className="text-white/60 text-sm">{user.location}</p>
         </div>
       </div>
 
+      {/* 2Man crew section */}
+      <div className="px-4 pt-3 pb-1">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-[#1E90FF] text-xs font-bold uppercase tracking-wider">2Man Crew</span>
+          {twoMans.length > 0 && (
+            <span className="bg-[#1E90FF22] text-[#1E90FF] text-[10px] font-bold px-2 py-0.5 rounded-full">
+              {twoMans.length}
+            </span>
+          )}
+        </div>
+        {twoMans.length > 0 ? (
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+            {twoMans.map(tm => (
+              <TwoManAvatar key={tm.id} user={tm} />
+            ))}
+          </div>
+        ) : (
+          <p className="text-white/25 text-xs italic pb-1">No 2man yet</p>
+        )}
+      </div>
+
       {/* Info section */}
-      <div className="p-4 space-y-3">
+      <div className="p-4 pt-2 space-y-3">
         {/* Stats row */}
         <div className="flex gap-2 flex-wrap">
-          {user.height && (
-            <Chip label="📏" value={user.height} />
-          )}
-          {user.salary && (
-            <Chip label="💰" value={user.salary} />
-          )}
-          {user.forty_yard_dash && (
-            <Chip label="⚡" value={user.forty_yard_dash} />
-          )}
+          {user.height && <Chip label="📏" value={user.height} />}
+          {user.salary && <Chip label="💰" value={user.salary} />}
+          {user.forty_yard_dash && <Chip label="⚡" value={user.forty_yard_dash} />}
         </div>
 
         {/* Quote */}
@@ -139,6 +132,29 @@ export default function ProfileCard({ user, onLike, onPass }: Props) {
           ♥
         </button>
       </div>
+    </div>
+  )
+}
+
+function TwoManAvatar({ user }: { user: User }) {
+  return (
+    <div className="flex flex-col items-center gap-1 flex-shrink-0 w-14">
+      <div className="w-12 h-12 rounded-full bg-[#0A1628] overflow-hidden border-2 border-[#1E90FF33]">
+        {user.photos?.[0] ? (
+          <Image
+            src={user.photos[0]}
+            alt={user.name || ''}
+            width={48}
+            height={48}
+            className="object-cover w-full h-full"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-xl text-white/30">👤</div>
+        )}
+      </div>
+      <p className="text-white/70 text-[10px] text-center leading-tight truncate w-full">
+        {user.name?.split(' ')[0]}
+      </p>
     </div>
   )
 }

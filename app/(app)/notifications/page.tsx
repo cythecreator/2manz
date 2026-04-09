@@ -23,7 +23,7 @@ export default function NotificationsPage() {
         .select(`
           *,
           triggered_by:triggered_by_user_id(id, name, photos, age),
-          target:target_user_id(id, name, photos, age, two_man_id)
+          target:target_user_id(id, name, photos, age)
         `)
         .eq('notified_user_id', user.id)
         .order('created_at', { ascending: false })
@@ -117,8 +117,9 @@ function NotificationItem({ notification: n, onTap }: { notification: any; onTap
       <div className="flex-1 min-w-0">
         <p className="text-white text-sm leading-snug">
           <span className="font-bold text-[#1E90FF]">{n.triggered_by?.name || 'Your 2man'}</span>
-          {' '}liked someone — check out their 2man{' '}
-          <span className="font-bold text-white">{n.target?.name || 'them'}</span>
+          {' '}liked{' '}
+          <span className="font-bold text-white">{n.target?.name || 'someone'}</span>
+          {' '}— tap to check out their 2man crew
         </p>
         <p className="text-white/30 text-xs mt-1">{formatDistanceToNow(n.created_at)}</p>
       </div>
